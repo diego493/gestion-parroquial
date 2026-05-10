@@ -31,7 +31,13 @@ export default {
           800: '#6b21a8',
           900: '#581c87',
         },
+
+        // 🔥 ESTO ES LO QUE TE FALTA
+        border: "hsl(var(--border))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
       },
+
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         serif: ['Georgia', 'serif'],
@@ -39,4 +45,4 @@ export default {
     },
   },
   plugins: [],
-}
+};
