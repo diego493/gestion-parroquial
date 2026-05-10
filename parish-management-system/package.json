@@ -16,9 +16,7 @@
     "prisma:migrate:prod": "cd server && npx prisma migrate deploy",
     "prisma:seed": "cd server && npx prisma db seed",
     "prisma:studio": "cd server && npx prisma studio",
-    "prisma:reset": "cd server && npx prisma migrate reset",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "prisma:reset": "cd server && npx prisma migrate reset"
   },
   "keywords": [
     "parish",
