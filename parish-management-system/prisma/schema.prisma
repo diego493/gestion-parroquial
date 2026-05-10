@@ -1,0 +1,325 @@
+// Schema de Prisma para Sistema de Gestión de Equipos Parroquiales - Maracaibo
+// Stack: React + Node.js/Express + PostgreSQL + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS - Definición de tipos enumerados
+// ============================================
+
+/// Roles del sistema RBAC
+enum Role {
+  SUPREMO        /// Control total del sistema
+  ADMINISTRADOR  /// Gestión de usuarios y coordinadores
+  COORDINADOR    /// Solo lectura/escritura de SU parroquia asignada
+}
+
+/// Estados de un cargo
+enum CargoStatus {
+  VACANTE     /// Cargo sin ocupar
+  OCUPADO     /// Cargo ocupado
+  SUSPENDIDO  /// Cargo temporalmente suspendido
+}
+
+/// Tipos de acción para auditoría
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ASSIGN
+  REMOVE
+}
+
+/// Estados del usuario
+enum UserStatus {
+  ACTIVO      /// Usuario activo
+  INACTIVO    /// Usuario inactivo
+  SUSPENDIDO  /// Usuario suspendido
+}
+
+// ============================================
+// MODELOS PRINCIPALES
+// ============================================
+
+/// Modelo de Usuario del sistema
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  password          String      /// Hash de la contraseña
+  
+  /// Datos de identificación (CNE)
+  cedula            String      @unique /// Cédula de identidad (ej: V-12345678)
+  firstName         String      /// Nombre (autocompletado desde CNE)
+  lastName          String      /// Apellido (autocompletado desde CNE)
+  secondLastName    String?     /// Segundo apellido (opcional)
+  
+  /// Datos del colegio electoral (CNE)
+  votingCenter      String?     /// Nombre del centro de votación
+  votingState       String?     /// Estado donde vota
+  votingMunicipality String?    /// Municipio donde vota
+  votingParish      String?     /// Parroquia donde vota
+  isNotRegistered   Boolean     @default(false) /// true si la persona no está inscrita en el CNE
+  
+  /// Datos de contacto
+  phone             String?
+  
+  /// Rol y estado
+  role              Role        @default(COORDINADOR)
+  status            UserStatus  @default(ACTIVO)
+  
+  /// Relación con parroquia (NULL para Supremo y Administradores sin asignación específica)
+  parishId          String?
+  parish            Parish?     @relation("ParishCoordinators", fields: [parishId], references: [id])
+  
+  /// Fecha de creación y actualización
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  lastLogin         DateTime?
+  
+  /// Relaciones
+  auditLogs         AuditLog[]
+  cargoAssignments  CargoAssignment[]
+  
+  /// Índice para búsquedas por email
+  @@index([email])
+  @@index([role])
+  @@index([parishId])
+}
+
+/// Modelo de Parroquia (18 parroquias de Maracaibo)
+model Parish {
+  id                String      @id @default(uuid())
+  name              String      @unique
+  code              String      @unique  /// Código único para referencia interna
+  description       String?
+  
+  /// Municipio al que pertenece (todos en Maracaibo)
+  municipality      String      @default("Maracaibo")
+  
+  /// Fecha de creación
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  /// Relaciones
+  coordinators      User[]      @relation("ParishCoordinators")
+  cargos            Cargo[]
+  cargoAssignments  CargoAssignment[]
+  
+  /// Índices
+  @@index([code])
+  @@index([municipality])
+}
+
+/// Modelo de Cargo (6 puestos por parroquia - jerarquía definida)
+model Cargo {
+  id                String      @id @default(uuid())
+  name              String      /// Nombre del cargo (ej: "Coordinador", "Secretario", etc.)
+  code              String      /// Código único (ej: "COORD", "SECRET", "TESOR", "VOCAL1", "VOCAL2")
+  description       String?
+  order             Int         @default(0)  /// Orden de visualización
+  isMunicipal       Boolean     @default(false) /// Si es true, es cargo municipal
+  
+  /// Parroquia a la que pertenece (NULL para cargos municipales)
+  parishId          String?
+  parish            Parish?     @relation(fields: [parishId], references: [id], onDelete: Cascade)
+  
+  /// Fecha de creación
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  /// Relación con asignaciones
+  assignments       CargoAssignment[]
+  
+  /// Índice único por parroquia y código (solo para cargos parroquiales)
+  @@unique([parishId, code])
+  @@index([parishId])
+  @@index([isMunicipal])
+}
+
+/// Modelo de Asignación de Cargo a Usuario
+model CargoAssignment {
+  id                String      @id @default(uuid())
+  
+  /// Cargo asignado
+  cargoId           String
+  cargo             Cargo       @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  
+  /// Usuario asignado al cargo
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  /// Parroquia (denormalizado para consultas más rápidas, NULL para cargos municipales)
+  parishId          String?
+  parish            Parish?     @relation(fields: [parishId], references: [id])
+  
+  /// Estado del cargo
+  status            CargoStatus @default(VACANTE)
+  
+  /// Fecha de asignación
+  assignedAt        DateTime    @default(now())
+  endDate           DateTime?   /// Fecha de fin (NULL = indefinido)
+  
+  /// Observaciones
+  notes             String?
+  
+  /// Fecha de creación y actualización
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  /// Usuario que realizó la asignación (auditoría)
+  assignedByUserId  String?
+  assignedByUser    User?       @relation(fields: [assignedByUserId], references: [id])
+  
+  /// Índices únicos y de búsqueda
+  @@unique([cargoId, userId])
+  @@index([parishId])
+  @@index([userId])
+  @@index([status])
+}
+
+/// Modelo para enlaces de invitación de coordinadores parroquiales
+model InvitationLink {
+  id                String      @id @default(uuid())
+  token             String      @unique /// Token único para el enlace
+  parishId          String
+  parish            Parish      @relation(fields: [parishId], references: [id], onDelete: Cascade)
+  
+  /// Usuario que creó el enlace (coordinador)
+  createdByUserId   String
+  createdByUser     User        @relation(fields: [createdByUserId], references: [id])
+  
+  /// Estado del enlace
+  isActive          Boolean     @default(true)
+  maxUses           Int?        /// Máximo de usos (NULL = ilimitado)
+  currentUses       Int         @default(0)
+  
+  /// Fecha de expiración (NULL = nunca expira)
+  expiresAt         DateTime?
+  
+  /// Fecha de creación
+  createdAt         DateTime    @default(now())
+  
+  /// Índices
+  @@index([token])
+  @@index([parishId])
+  @@index([isActive])
+}
+
+/// Modelo para la Directiva Municipal
+model MunicipalBoard {
+  id                String      @id @default(uuid())
+  
+  /// Usuario miembro de la directiva
+  userId            String      @unique
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  /// Cargo municipal
+  cargoId           String      @unique
+  cargo             Cargo       @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  
+  /// Fecha de asignación
+  assignedAt        DateTime    @default(now())
+  endDate           DateTime?
+  
+  /// Observaciones
+  notes             String?
+  
+  /// Fecha de creación
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  /// Índices
+  @@index([userId])
+  @@index([cargoId])
+}
+
+/// Modelo de Auditoría (Logs del sistema)
+model AuditLog {
+  id                String      @id @default(uuid())
+  
+  /// Usuario que realizó la acción
+  userId            String?
+  user              User?       @relation(fields: [userId], references: [id])
+  
+  /// Acción realizada
+  action            AuditAction
+  
+  /// Entidad afectada
+  entityType        String?     /// ej: "User", "Parish", "Cargo", "CargoAssignment"
+  entityId          String?     /// ID de la entidad afectada
+  
+  /// Datos antes y después (JSON)
+  previousData      Json?
+  newData           Json?
+  
+  /// IP y User Agent
+  ipAddress         String?
+  userAgent         String?
+  
+  /// Descripción de la acción
+  description       String?
+  
+  /// Fecha de creación
+  createdAt         DateTime    @default(now())
+  
+  /// Índices para consultas de auditoría
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+/// Modelo de Historial de Cambios de Parroquia (opcional, para tracking)
+model ParishHistory {
+  id                String      @id @default(uuid())
+  
+  /// Parroquia afectada
+  parishId          String
+  parish            Parish      @relation(fields: [parishId], references: [id])
+  
+  /// Tipo de evento
+  eventType         String      /// ej: "COORDINATOR_ASSIGNED", "CARGO_FILLED", "CARGO_VACATED"
+  
+  /// Descripción del evento
+  description       String
+  
+  /// Datos adicionales (JSON)
+  metadata          Json?
+  
+  /// Usuario que generó el evento
+  userId            String?
+  
+  /// Fecha del evento
+  createdAt         DateTime    @default(now())
+  
+  /// Índices
+  @@index([parishId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+// ============================================
+// VISTAS / CONSULTAS COMUNES (Comentarios)
+// ============================================
+
+/// Vista para progreso de reclutamiento por parroquia:
+/// SELECT 
+///   p.id,
+///   p.name,
+///   COUNT(ca.id) as cargos_ocupados,
+///   COUNT(c.id) as total_cargos,
+///   ROUND(COUNT(ca.id)::numeric / COUNT(c.id)::numeric * 100, 2) as porcentaje
+/// FROM Parish p
+/// LEFT JOIN Cargo c ON c.parishId = p.id
+/// LEFT JOIN CargoAssignment ca ON ca.cargoId = c.id AND ca.status = 'OCUPADO'
+/// GROUP BY p.id, p.name
+/// ORDER BY porcentaje DESC;

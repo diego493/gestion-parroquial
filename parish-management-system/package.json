@@ -1,0 +1,46 @@
+{
+  "name": "parish-management-system",
+  "version": "1.0.0",
+  "description": "Sistema de Gestión de Equipos Parroquiales - Maracaibo",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm run preview",
+    "prisma:generate": "cd server && npx prisma generate",
+    "prisma:migrate": "cd server && npx prisma migrate dev",
+    "prisma:migrate:prod": "cd server && npx prisma migrate deploy",
+    "prisma:seed": "cd server && npx prisma db seed",
+    "prisma:studio": "cd server && npx prisma studio",
+    "prisma:reset": "cd server && npx prisma migrate reset",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "keywords": [
+    "parish",
+    "management",
+    "maracaibo",
+    "rbac",
+    "react",
+    "nodejs",
+    "postgresql",
+    "prisma",
+    "cne"
+  ],
+  "author": "Equipo de Desarrollo - Gestión Parroquial Maracaibo",
+  "license": "MIT",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.45.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
