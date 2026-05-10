@@ -1,6 +1,3 @@
-// Schema de Prisma para Sistema de Gestión de Equipos Parroquiales - Maracaibo
-// Stack: React + Node.js/Express + PostgreSQL + Prisma ORM
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,14 +7,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// ENUMS - Definición de tipos enumerados
-// ============================================
+// ======================
+// ENUMS
+// ======================
 
 enum Role {
   SUPREMO
   ADMINISTRADOR
   COORDINADOR
+}
+
+enum UserStatus {
+  ACTIVO
+  INACTIVO
+  SUSPENDIDO
 }
 
 enum CargoStatus {
@@ -36,57 +39,41 @@ enum AuditAction {
   REMOVE
 }
 
-enum UserStatus {
-  ACTIVO
-  INACTIVO
-  SUSPENDIDO
-}
-
-// ============================================
-// MODELOS PRINCIPALES
-// ============================================
+// ======================
+// MODELOS
+// ======================
 
 model User {
-  id                String            @id @default(uuid())
-  email             String            @unique
-  password          String
-  
-  cedula            String            @unique
-  firstName         String
-  lastName          String
-  secondLastName    String?
-  
-  votingCenter      String?
-  votingState       String?
-  votingMunicipality String?
-  votingParish      String?
-  isNotRegistered   Boolean           @default(false)
-  
-  phone             String?
-  role              Role              @default(COORDINADOR)
-  status            UserStatus        @default(ACTIVO)
-  
-  parishId          String?
-  parish            Parish?           @relation("ParishCoordinators", fields: [parishId], references: [id])
-  
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  lastLogin         DateTime?
-  
-  // --- RELACIONES CORREGIDAS ---
-  auditLogs         AuditLog[]
-  
-  // Relación con cargos que este usuario POSEE
-  cargoAssignments  CargoAssignment[] @relation("UserAssignments")
-  
-  // Relación con asignaciones que este usuario REALIZÓ (Auditoría)
-  createdAssignments CargoAssignment[] @relation("AssignmentsCreatedBy")
-  
-  // Enlaces de invitación creados por este usuario
-  invitationLinks   InvitationLink[]  @relation("UserCreatedInvitations")
+  id              String      @id @default(uuid())
+  email           String      @unique
+  password        String
 
-  // Cargo en la directiva municipal (si aplica)
-  municipalBoard    MunicipalBoard?
+  cedula          String      @unique
+  firstName       String
+  lastName        String
+  secondLastName  String?
+
+  phone           String?
+
+  role            Role        @default(COORDINADOR)
+  status          UserStatus  @default(ACTIVO)
+
+  parishId        String?
+  parish          Parish?     @relation("ParishCoordinators", fields: [parishId], references: [id])
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  lastLogin       DateTime?
+
+  // Relaciones
+  auditLogs       AuditLog[]
+
+  cargoAssignments        CargoAssignment[] @relation("UserAssignments")
+  assignedByMe            CargoAssignment[] @relation("AssignmentsCreatedBy")
+
+  invitationLinks         InvitationLink[] @relation("InvitationsCreatedBy")
+
+  municipalBoard          MunicipalBoard?
 
   @@index([email])
   @@index([role])
@@ -94,147 +81,156 @@ model User {
 }
 
 model Parish {
-  id                String            @id @default(uuid())
-  name              String            @unique
-  code              String            @unique
-  description       String?
-  municipality      String            @default("Maracaibo")
-  
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  
-  coordinators      User[]            @relation("ParishCoordinators")
-  cargos            Cargo[]
-  cargoAssignments  CargoAssignment[]
-  invitationLinks   InvitationLink[]
-  parishHistory     ParishHistory[]
+  id            String   @id @default(uuid())
+  name          String   @unique
+  code          String   @unique
+  description   String?
+
+  municipality  String   @default("Maracaibo")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coordinators  User[]   @relation("ParishCoordinators")
+  cargos        Cargo[]
+
+  cargoAssignments CargoAssignment[]
+  invitationLinks  InvitationLink[]
+  history          ParishHistory[]
 
   @@index([code])
-  @@index([municipality])
 }
 
 model Cargo {
-  id                String            @id @default(uuid())
-  name              String
-  code              String
-  description       String?
-  order             Int               @default(0)
-  isMunicipal       Boolean           @default(false)
-  
-  parishId          String?
-  parish            Parish?           @relation(fields: [parishId], references: [id], onDelete: Cascade)
-  
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  
-  assignments       CargoAssignment[]
-  municipalBoard    MunicipalBoard?
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  order       Int      @default(0)
+  isMunicipal Boolean  @default(false)
+
+  parishId    String?
+  parish      Parish?  @relation(fields: [parishId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments CargoAssignment[]
+  municipalBoard MunicipalBoard?
 
   @@unique([parishId, code])
   @@index([parishId])
-  @@index([isMunicipal])
 }
 
 model CargoAssignment {
-  id                String          @id @default(uuid())
-  
-  cargoId           String
-  cargo             Cargo           @relation(fields: [cargoId], references: [id], onDelete: Cascade)
-  
-  // Usuario que ocupa el cargo
-  userId            String
-  user              User            @relation("UserAssignments", fields: [userId], references: [id], onDelete: Cascade)
-  
-  parishId          String?
-  parish            Parish?         @relation(fields: [parishId], references: [id])
-  
-  status            CargoStatus     @default(VACANTE)
-  assignedAt        DateTime        @default(now())
-  endDate           DateTime?
-  notes             String?
-  
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  
-  // Usuario que realizó la asignación (Auditoría)
-  assignedByUserId  String?
-  assignedByUser    User?           @relation("AssignmentsCreatedBy", fields: [assignedByUserId], references: [id])
-  
+  id          String      @id @default(uuid())
+
+  cargoId     String
+  cargo       Cargo       @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User        @relation("UserAssignments", fields: [userId], references: [id], onDelete: Cascade)
+
+  parishId    String?
+  parish      Parish?     @relation(fields: [parishId], references: [id])
+
+  status      CargoStatus @default(VACANTE)
+
+  assignedAt  DateTime    @default(now())
+  endDate     DateTime?
+  notes       String?
+
+  assignedByUserId String?
+  assignedByUser   User? @relation("AssignmentsCreatedBy", fields: [assignedByUserId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@unique([cargoId, userId])
-  @@index([parishId])
   @@index([userId])
+  @@index([parishId])
   @@index([status])
 }
 
 model InvitationLink {
-  id                String    @id @default(uuid())
-  token             String    @unique
-  parishId          String
-  parish            Parish    @relation(fields: [parishId], references: [id], onDelete: Cascade)
-  
-  createdByUserId   String
-  createdByUser     User      @relation("UserCreatedInvitations", fields: [createdByUserId], references: [id])
-  
-  isActive          Boolean   @default(true)
-  maxUses           Int?
-  currentUses       Int       @default(0)
-  expiresAt         DateTime?
-  createdAt         DateTime  @default(now())
-  
+  id            String   @id @default(uuid())
+  token         String   @unique
+
+  parishId      String
+  parish        Parish   @relation(fields: [parishId], references: [id], onDelete: Cascade)
+
+  createdById   String
+  createdBy     User     @relation("InvitationsCreatedBy", fields: [createdById], references: [id])
+
+  isActive      Boolean  @default(true)
+  maxUses       Int?
+  currentUses   Int      @default(0)
+  expiresAt     DateTime?
+
+  createdAt     DateTime @default(now())
+
   @@index([token])
   @@index([parishId])
-  @@index([isActive])
 }
 
 model MunicipalBoard {
-  id                String    @id @default(uuid())
-  userId            String    @unique
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  cargoId           String    @unique
-  cargo             Cargo     @relation(fields: [cargoId], references: [id], onDelete: Cascade)
-  
-  assignedAt        DateTime  @default(now())
-  endDate           DateTime?
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
-  @@index([userId])
-  @@index([cargoId])
+  id        String @id @default(uuid())
+
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cargoId   String @unique
+  cargo     Cargo  @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  endDate    DateTime?
+
+  notes      String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model AuditLog {
-  id                String      @id @default(uuid())
-  userId            String?
-  user              User?       @relation(fields: [userId], references: [id])
-  action            AuditAction
-  entityType        String?
-  entityId          String?
-  previousData      Json?
-  newData           Json?
-  ipAddress         String?
-  userAgent         String?
-  description       String?
-  createdAt         DateTime    @default(now())
-  
+  id          String @id @default(uuid())
+
+  userId      String?
+  user        User?  @relation(fields: [userId], references: [id])
+
+  action      AuditAction
+
+  entityType  String?
+  entityId    String?
+
+  previousData Json?
+  newData      Json?
+
+  ipAddress   String?
+  userAgent   String?
+
+  description String?
+
+  createdAt   DateTime @default(now())
+
   @@index([userId])
   @@index([action])
   @@index([entityType, entityId])
-  @@index([createdAt])
 }
 
 model ParishHistory {
-  id                String    @id @default(uuid())
-  parishId          String
-  parish            Parish    @relation(fields: [parishId], references: [id])
-  eventType         String
-  description       String
-  metadata          Json?
-  userId            String?
-  createdAt         DateTime  @default(now())
-  
+  id          String @id @default(uuid())
+
+  parishId    String
+  parish      Parish @relation(fields: [parishId], references: [id])
+
+  eventType   String
+  description String
+  metadata    Json?
+
+  userId      String?
+
+  createdAt   DateTime @default(now())
+
   @@index([parishId])
   @@index([eventType])
-  @@index([createdAt])
 }
