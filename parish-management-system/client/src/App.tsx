@@ -39,9 +39,30 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 
 // All pages defined here, no external import
 const LoginPage = () => (
-  <div className="p-8">
-    <h1 className="text-3xl font-bold">Iniciar Sesión</h1>
-    {/* Aquí iría el formulario real */}
+  <div className="p-8 max-w-md mx-auto">
+    <h1 className="text-3xl font-bold mb-6">Iniciar Sesión</h1>
+    <form className="flex flex-col gap-4">
+      <input
+        type="email"
+        name="email"
+        placeholder="Correo electrónico"
+        className="border p-2 rounded"
+        required
+      />
+      <input
+        type="password"
+        name="password"
+        placeholder="Contraseña"
+        className="border p-2 rounded"
+        required
+      />
+      <button
+        type="submit"
+        className="bg-blue-600 text-white rounded px-4 py-2 font-semibold hover:bg-blue-700"
+      >
+        Ingresar
+      </button>
+    </form>
   </div>
 )
 
