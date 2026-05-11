@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ======================
+// ENUMS
+// ======================
+
+enum Role {
+  SUPREMO
+  ADMINISTRADOR
+  COORDINADOR
+}
+
+enum UserStatus {
+  ACTIVO
+  INACTIVO
+  SUSPENDIDO
+}
+
+enum CargoStatus {
+  VACANTE
+  OCUPADO
+  SUSPENDIDO
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ASSIGN
+  REMOVE
+}
+
+// ======================
+// MODELOS
+// ======================
+
+model User {
+  id              String      @id @default(uuid())
+  email           String      @unique
+  password        String
+
+  cedula          String      @unique
+  firstName       String
+  lastName        String
+  secondLastName  String?
+
+  phone           String?
+
+  role            Role        @default(COORDINADOR)
+  status          UserStatus  @default(ACTIVO)
+
+  parishId        String?
+  parish          Parish?     @relation("ParishCoordinators", fields: [parishId], references: [id])
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  lastLogin       DateTime?
+
+  // Relaciones
+  auditLogs       AuditLog[]
+
+  cargoAssignments        CargoAssignment[] @relation("UserAssignments")
+  assignedByMe            CargoAssignment[] @relation("AssignmentsCreatedBy")
+
+  invitationLinks         InvitationLink[] @relation("InvitationsCreatedBy")
+
+  municipalBoard          MunicipalBoard?
+
+  @@index([email])
+  @@index([role])
+  @@index([parishId])
+}
+
+model Parish {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  code          String   @unique
+  description   String?
+
+  municipality  String   @default("Maracaibo")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coordinators  User[]   @relation("ParishCoordinators")
+  cargos        Cargo[]
+
+  cargoAssignments CargoAssignment[]
+  invitationLinks  InvitationLink[]
+  history          ParishHistory[]
+
+  @@index([code])
+}
+
+model Cargo {
+  id          String   @id @default(uuid())
+  name        String
+  code        String
+  description String?
+  order       Int      @default(0)
+  isMunicipal Boolean  @default(false)
+
+  parishId    String?
+  parish      Parish?  @relation(fields: [parishId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments CargoAssignment[]
+  municipalBoard MunicipalBoard?
+
+  @@unique([parishId, code])
+  @@index([parishId])
+}
+
+model CargoAssignment {
+  id          String      @id @default(uuid())
+
+  cargoId     String
+  cargo       Cargo       @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User        @relation("UserAssignments", fields: [userId], references: [id], onDelete: Cascade)
+
+  parishId    String?
+  parish      Parish?     @relation(fields: [parishId], references: [id])
+
+  status      CargoStatus @default(VACANTE)
+
+  assignedAt  DateTime    @default(now())
+  endDate     DateTime?
+  notes       String?
+
+  assignedByUserId String?
+  assignedByUser   User? @relation("AssignmentsCreatedBy", fields: [assignedByUserId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([cargoId, userId])
+  @@index([userId])
+  @@index([parishId])
+  @@index([status])
+}
+
+model InvitationLink {
+  id            String   @id @default(uuid())
+  token         String   @unique
+
+  parishId      String
+  parish        Parish   @relation(fields: [parishId], references: [id], onDelete: Cascade)
+
+  createdById   String
+  createdBy     User     @relation("InvitationsCreatedBy", fields: [createdById], references: [id])
+
+  isActive      Boolean  @default(true)
+  maxUses       Int?
+  currentUses   Int      @default(0)
+  expiresAt     DateTime?
+
+  createdAt     DateTime @default(now())
+
+  @@index([token])
+  @@index([parishId])
+}
+
+model MunicipalBoard {
+  id        String @id @default(uuid())
+
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  cargoId   String @unique
+  cargo     Cargo  @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+  endDate    DateTime?
+
+  notes      String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String @id @default(uuid())
+
+  userId      String?
+  user        User?  @relation(fields: [userId], references: [id])
+
+  action      AuditAction
+
+  entityType  String?
+  entityId    String?
+
+  previousData Json?
+  newData      Json?
+
+  ipAddress   String?
+  userAgent   String?
+
+  description String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+}
+
+model ParishHistory {
+  id          String @id @default(uuid())
+
+  parishId    String
+  parish      Parish @relation(fields: [parishId], references: [id])
+
+  eventType   String
+  description String
+  metadata    Json?
+
+  userId      String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([parishId])
+  @@index([eventType])
+}
