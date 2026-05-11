@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "description": "Backend API para Sistema de Gestión Parroquial",
   "main": "dist/index.js",
-
   "engines": {
     "node": "20.x"
   },
-
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
@@ -20,7 +18,7 @@
   },
 
   "prisma": {
-    "seed": "ts-node ../prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts"
   },
 
   "dependencies": {
@@ -43,7 +41,6 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.10.0",
     "@types/uuid": "^9.0.7",
-
     "typescript": "^5.3.2",
     "tsx": "^4.6.0",
     "prisma": "5.22.0",
