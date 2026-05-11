@@ -1,7 +1,7 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { Toaster } from 'react-hot-toast'
+import { Toaster, toast } from 'react-hot-toast'
 
 // Simple Error Boundary to prevent blank screens on runtime errors
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
@@ -37,34 +37,75 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
   }
 }
 
-// All pages defined here, no external import
-const LoginPage = () => (
-  <div className="p-8 max-w-md mx-auto">
-    <h1 className="text-3xl font-bold mb-6">Iniciar Sesión</h1>
-    <form className="flex flex-col gap-4">
-      <input
-        type="email"
-        name="email"
-        placeholder="Correo electrónico"
-        className="border p-2 rounded"
-        required
-      />
-      <input
-        type="password"
-        name="password"
-        placeholder="Contraseña"
-        className="border p-2 rounded"
-        required
-      />
-      <button
-        type="submit"
-        className="bg-blue-600 text-white rounded px-4 py-2 font-semibold hover:bg-blue-700"
-      >
-        Ingresar
-      </button>
-    </form>
-  </div>
-)
+// LoginPage conectado al backend
+function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success('¡Inicio de sesión exitoso!')
+        // Guarda el token si tu backend lo responde
+        // localStorage.setItem('token', data.token)
+        setTimeout(() => {
+          navigate('/dashboard')
+        }, 900)
+      } else {
+        toast.error(data?.message || 'Credenciales incorrectas')
+      }
+    } catch (error: any) {
+      toast.error('Error de conexión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="p-8 max-w-md mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Iniciar Sesión</h1>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <input
+          type="email"
+          name="email"
+          placeholder="Correo electrónico"
+          className="border p-2 rounded"
+          value={email}
+          autoComplete="username"
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Contraseña"
+          className="border p-2 rounded"
+          value={password}
+          autoComplete="current-password"
+          onChange={e => setPassword(e.target.value)}
+          required
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 text-white rounded px-4 py-2 font-semibold hover:bg-blue-700"
+          disabled={loading}
+        >
+          {loading ? 'Ingresando...' : 'Ingresar'}
+        </button>
+      </form>
+    </div>
+  )
+}
 
 const DashboardPage = () => (
   <div className="p-8">
@@ -118,16 +159,13 @@ function App() {
         <Router>
           <div className="min-h-screen bg-gray-50">
             <Routes>
-              {/* Redirigir raíz al login */}
               <Route path="/" element={<Navigate to="/login" replace />} />
-
               <Route path="/login" element={<LoginPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/parishes" element={<ParishesPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/municipal-board" element={<MunicipalBoardPage />} />
-
               <Route path="/404" element={<NotFoundPage />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
